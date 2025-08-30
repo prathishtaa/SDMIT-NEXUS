@@ -35,6 +35,8 @@ class VerifyOTPRequest(BaseModel):
 def send_otp(data: EmailRequest, db: Session = Depends(get_db)):
     if not data.email.endswith("@sdmit.in"):
         raise HTTPException(status_code=400, detail="Invalid college email")
+    if db.query(Student).filter(Student.email == data.email).first():
+        raise HTTPException(status_code=400, detail="Email already registered")
 
     otp, expires_at = generate_otp()
 
@@ -163,3 +165,4 @@ def reset_password(data: ResetPasswordRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="User not found")
 
     return {"message": "Password reset successful ✅"}
+
