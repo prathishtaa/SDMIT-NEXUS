@@ -37,7 +37,7 @@ class Student(Base):
     email = Column(String, unique=True, index=True, nullable=False)
     password_hash = Column(String, nullable=False)
     branch = Column(String, nullable=False)
-    year = Column(Integer, nullable=False)
+    year = Column(String, nullable=False)
     group_id = Column(Integer, ForeignKey("groups.group_id", ondelete="CASCADE"))
 
     group = relationship("Group", back_populates="students")
@@ -185,4 +185,5 @@ class OTPVerification(Base):
     otp_hash = Column(String, nullable=False)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     expires_at = Column(DateTime(timezone=True), nullable=False)
+
     is_used = Column(Boolean, default=False)
