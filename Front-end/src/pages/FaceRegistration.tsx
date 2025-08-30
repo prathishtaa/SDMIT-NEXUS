@@ -47,7 +47,6 @@ export default function FaceRegistration() {
     let mpCamera: any
 
     const loadScripts = async () => {
-      // face_mesh
       await new Promise<void>((resolve) => {
         const s = document.createElement("script")
         s.src = "https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"
@@ -55,7 +54,6 @@ export default function FaceRegistration() {
         document.body.appendChild(s)
       })
 
-      // camera utils
       await new Promise<void>((resolve) => {
         const s = document.createElement("script")
         s.src = "https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"
@@ -76,7 +74,7 @@ export default function FaceRegistration() {
         })
 
         faceMesh.onResults((results: any) => {
-          ;(window as any).lastLandmarks = results.multiFaceLandmarks || []
+          (window as any).lastLandmarks = results.multiFaceLandmarks || []
           const video = videoRef.current!
           const vw = video.videoWidth
           const vh = video.videoHeight
@@ -84,7 +82,10 @@ export default function FaceRegistration() {
             setFaceInCircle(false)
             return
           }
-          if (results.multiFaceLandmarks && results.multiFaceLandmarks.length === 1) {
+
+          const numFaces = results.multiFaceLandmarks?.length || 0
+
+          if (numFaces === 1) {
             const lms = results.multiFaceLandmarks[0]
             const LEFT_EYE = lms[33]
             const RIGHT_EYE = lms[263]
@@ -92,13 +93,8 @@ export default function FaceRegistration() {
             const cy = ((LEFT_EYE.y + RIGHT_EYE.y) / 2) * vh
             const scaleX = 300 / vw
             const scaleY = 300 / vh
-            const faceX = cx * scaleX
-            const faceY = cy * scaleY
-            const circleX = 150
-            const circleY = 150
-            const radius = 150
-            const distance = Math.hypot(faceX - circleX, faceY - circleY)
-            setFaceInCircle(distance < radius * 0.6)
+            const distance = Math.hypot(cx * scaleX - 150, cy * scaleY - 150)
+            setFaceInCircle(distance < 150 * 0.6)
           } else {
             setFaceInCircle(false)
           }
@@ -170,62 +166,62 @@ export default function FaceRegistration() {
     setIsCapturing(false)
   }
 
-  // capture face aligned 112x112
   const capturePhoto = () => {
-  const faces: any[] = (window as any).lastLandmarks || []
-  if (!faces || faces.length === 0) {
+    const faces: any[] = (window as any).lastLandmarks || []
+
+    if (!faces.length) {
+      toast({
+        title: "Face Not Detected",
+        description: "🙂 Please move your face fully inside the circle and ensure good lighting.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (faces.length > 1) {
+      toast({
+        title: "Multiple Faces Detected 👥",
+        description: "Please ensure only your face is visible in the frame.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (!faceInCircle) {
+      toast({
+        title: "Face Not Centered",
+        description: "🙂 Please move your face fully inside the circle before capturing.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (!videoRef.current || !canvasRef.current) return
+
+    const video = videoRef.current
+    const canvas = canvasRef.current
+    const ctx = canvas.getContext("2d")!
+    canvas.width = video.videoWidth
+    canvas.height = video.videoHeight
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+
+    const imageData = canvas.toDataURL("image/jpeg", 0.9)
+    const updated = [...captures]
+    updated[currentPromptIndex] = { ...updated[currentPromptIndex], imageData, captured: true }
+    setCaptures(updated)
+
     toast({
-      title: "Face Not Detected",
-      description: "🙂 Please move your face fully inside the circle and ensure good lighting.",
-      variant: "destructive",
+      title: "Capture Success ✅",
+      description: `${prompts[currentPromptIndex]} captured successfully!`,
     })
-    return
+
+    if (currentPromptIndex < captures.length - 1 && !updated[currentPromptIndex + 1].captured) {
+      setCurrentPromptIndex(currentPromptIndex + 1)
+    } else if (updated.every(c => c.captured)) {
+      stopCamera()
+      setAllCaptured(true)
+    }
   }
-  if (faces.length > 1) {
-    toast({
-      title: "Multiple Faces Detected",
-      description: "👥 Please ensure only your face is visible in the frame.",
-      variant: "destructive",
-    })
-    return
-  }
-  if (!faceInCircle) {
-    toast({
-      title: "Face Not Centered",
-      description: "🙂 Please move your face fully inside the circle before capturing.",
-      variant: "destructive",
-    })
-    return
-  }
-  if (!videoRef.current || !canvasRef.current) return
-
-  // ✅ Just take the raw frame (no rotation, no alignment)
-  const video = videoRef.current
-  const canvas = canvasRef.current
-  const ctx = canvas.getContext("2d")!
-  canvas.width = video.videoWidth
-  canvas.height = video.videoHeight
-  ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
-
-  const imageData = canvas.toDataURL("image/jpeg", 0.9)
-
-  const updated = [...captures]
-  updated[currentPromptIndex] = { ...updated[currentPromptIndex], imageData, captured: true }
-  setCaptures(updated)
-
-  toast({
-    title: "Capture Success ✅",
-    description: `${prompts[currentPromptIndex]} captured successfully!`,
-  })
-
-  if (currentPromptIndex < captures.length - 1 && !updated[currentPromptIndex + 1].captured) {
-    setCurrentPromptIndex(currentPromptIndex + 1)
-  } else if (updated.every(c => c.captured)) {
-    stopCamera()
-    setAllCaptured(true)
-  }
-}
-
 
   const retakeCapture = (index: number) => {
     const updated = [...captures]
@@ -236,75 +232,127 @@ export default function FaceRegistration() {
     setAllCaptured(false)
     if (!isCapturing) startCamera()
   }
+  async function importServerPublicKey(pem: string) {
+  const binaryDer = Uint8Array.from(
+    atob(pem.replace(/-----\w+ PUBLIC KEY-----/g, "").replace(/\s+/g, "")),
+    c => c.charCodeAt(0)
+  );
+  return crypto.subtle.importKey(
+    "spki",
+    binaryDer.buffer,
+    { name: "RSA-OAEP", hash: "SHA-256" },
+    false,
+    ["encrypt"]
+  );
+}
+
+async function generateAESKey() {
+  return await crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, true, ["encrypt", "decrypt"]);
+}
+
+async function encryptBlob(blob: Blob, key: CryptoKey) {
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const data = await blob.arrayBuffer();
+  const encrypted = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, data);
+  return { encrypted: new Blob([encrypted]), iv };
+}
 
   const handleRegister = async () => {
-  if (!allCaptured) {
-    toast({
-      title: "Error",
-      description: "Please capture all required photos before registering.",
-      variant: "destructive",
-    })
-    return
-  }
-
-  setIsProcessing(true)
-
-  try {
-    // Prepare form data
-    const formData = new FormData()
-    captures.forEach((c, idx) => {
-      if (c.imageData) {
-        const byteString = atob(c.imageData.split(",")[1])
-        const mimeString = c.imageData.split(",")[0].split(":")[1].split(";")[0]
-        const ab = new ArrayBuffer(byteString.length)
-        const ia = new Uint8Array(ab)
-        for (let i = 0; i < byteString.length; i++) {
-          ia[i] = byteString.charCodeAt(i)
-        }
-        const blob = new Blob([ab], { type: mimeString })
-        formData.append(`img${idx + 1}`, blob, `capture${idx + 1}.jpg`)
-      }
-    })
-
-    // ✅ Axios handles JSON automatically
-    const res = await api.post("/face_reg/verify/", formData, {
-      headers: { "Content-Type": "multipart/form-data" },
-    })
-
-    const data = res.data
-
-    if (data.message === "confirmation done") {
+    if (!allCaptured) {
       toast({
-        title: "Face Verified ✅",
-        description: "Your photos have been verified. Completing registration...",
+        title: "Error",
+        description: "Please capture all required photos before registering.",
+        variant: "destructive",
       })
+      return
+    }
 
-      // now actually complete registration
-      setTimeout(() => {
+    setIsProcessing(true)
+  try {
+    const formData = new FormData();
+
+    // 1. Get server public key (fetch from backend /public-key route)
+    const { data: pkRes } = await api.get("/face_reg/public-key");
+    const serverPublicKey = await importServerPublicKey(pkRes.public_key);
+
+    // 2. Generate AES key
+    const aesKey = await generateAESKey();
+
+    // 3. Encrypt images
+    for (let i = 0; i < captures.length; i++) {
+      if (captures[i].imageData) {
+        const byteString = atob(captures[i].imageData.split(",")[1]);
+        const ab = new ArrayBuffer(byteString.length);
+        const ia = new Uint8Array(ab);
+        for (let j = 0; j < byteString.length; j++) ia[j] = byteString.charCodeAt(j);
+        const blob = new Blob([ab], { type: "image/jpeg" });
+
+        const { encrypted, iv } = await encryptBlob(blob, aesKey);
+        formData.append(`img${i + 1}`, encrypted, `enc_capture${i + 1}.bin`);
+        formData.append(`iv${i + 1}`, JSON.stringify(Array.from(iv)));
+      }
+    }
+
+    // 4. Encrypt AES key with server public key
+    const rawKey = await crypto.subtle.exportKey("raw", aesKey);
+    const encryptedKey = await crypto.subtle.encrypt({ name: "RSA-OAEP" }, serverPublicKey, rawKey);
+    formData.append("encryptedKey", new Blob([encryptedKey]));
+
+    // 5. Add user data
+    formData.append("name", userData.name);
+    formData.append("email", userData.email);
+    formData.append("password", userData.password);
+    formData.append("usn", userData.usn);
+    formData.append("branch", userData.branch);
+    formData.append("year", userData.year);
+
+    // 6. Send
+    const res = await api.post("/face_reg/face-verify-register/", formData, {
+      headers: { "Content-Type": "multipart/form-data" }
+    });
+
+      const data = res.data
+
+      if (data.message === "confirmation done") {
         toast({
-          title: "Registration Complete",
+          title: "Registration Complete ✅",
           description: "Your account has been created successfully!",
         })
         navigate("/login")
-      }, 2000)
-    } else {
+      } else {
+        toast({
+          title: "Face Verification Failed ❌",
+          description: "These images don't belong to the same person. Please retake.",
+          variant: "destructive",
+        })
+        setAllCaptured(false)
+        setCaptures(captures.map(c => ({ ...c, imageData: null, captured: false })))
+        setCurrentPromptIndex(0)
+        startCamera()
+      }
+    } catch (error: any) {
+      let message = "Could not complete registration. Try again."
+
+      if (error.response?.data?.detail) {
+        const detail = error.response.data.detail
+        if (Array.isArray(detail)) {
+          message = detail.map((d: any) => d.msg).join(", ")
+        } else if (typeof detail === "string") {
+          message = detail
+        }
+      } else if (error.message) {
+        message = error.message
+      }
+
       toast({
-        title: "Face Verification Failed ❌",
-        description: "These images don't belong to the same person. Please retake.",
+        title: "Server Error",
+        description: message,
         variant: "destructive",
       })
+    } finally {
+      setIsProcessing(false)
     }
-  } catch (error: any) {
-    toast({
-      title: "Server Error",
-      description: error.response?.data?.detail || "Could not verify your photos. Try again.",
-      variant: "destructive",
-    })
-  } finally {
-    setIsProcessing(false)
   }
-}
-
 
   if (!userData || prompts.length === 0) return null
 
@@ -362,7 +410,7 @@ export default function FaceRegistration() {
                     )}
                   </div>
                   <p className="text-xs font-medium">{c.prompt}</p>
-                  {c.captured ? (
+                  {c.captured && (
                     <div className="flex items-center justify-center mt-1">
                       <Check className="h-3 w-3 text-green-500 mr-1" />
                       <Button
@@ -374,8 +422,6 @@ export default function FaceRegistration() {
                         <RotateCcw className="h-3 w-3 mr-1" /> Retake
                       </Button>
                     </div>
-                  ) : (
-                    <p className="text-xs text-muted-foreground mt-1">Pending</p>
                   )}
                 </div>
               ))}
