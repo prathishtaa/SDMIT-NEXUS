@@ -1,22 +1,28 @@
+import api from "@/services/api"
+
 export interface User {
   email: string
   name: string
-  role: 'student' | 'lecturer' | 'admin'
+  role: "student" | "lecturer" | "admin"
   usn?: string
-  year?: number
+  year?: string
   branch?: string
+  group_id?: number
+  groups?: number[]   // for lecturer
 }
 
 export interface AuthState {
   user: User | null
   isAuthenticated: boolean
+  token: string | null
 }
 
 class AuthService {
   private static instance: AuthService
   private authState: AuthState = {
     user: null,
-    isAuthenticated: false
+    isAuthenticated: false,
+    token: null,
   }
 
   static getInstance(): AuthService {
@@ -26,108 +32,62 @@ class AuthService {
     return AuthService.instance
   }
 
-  detectRole(email: string): 'student' | 'lecturer' | 'admin' {
-    if (email.endsWith('@admin.sdmit.in')) return 'admin'
-    if (email.endsWith('@sdmit.in')) return 'student'
-    if (email.endsWith('@gmail.com')) return 'lecturer'
-    return 'student' // default
-  }
+  /** 🔐 Login with backend */
+  async login(email: string, password: string): Promise<boolean> {
+    try {
+      const res = await api.post("login/auth-login", { email, password })
 
-  parseUSN(usn: string) {
-    const year = parseInt(usn.substring(4, 6)) 
-    const branchCode = usn.substring(6, 8) 
-    
-    const branchMap: Record<string, string> = {
-      'AD': 'Artificial Intelligence & Data Science',
-      'CS': 'Computer Science',
-      'IS': 'Information Science',
-      'CV': 'Civil',
-      'EC': 'Electronics & Communication',
-      'EE': 'Electrical & Electronics'
-    }
+      const { token, user } = res.data
 
-    // Calculate current year (2025 - (2000 + 22) = 3rd year, but assuming 4th year for 22)
-    const currentYear = year === 22 ? 4 : 
-                       year === 23 ? 3 : 
-                       year === 24 ? 2 : 1
+      // Save in localStorage for persistence
+      localStorage.setItem("auth_token", token)
+      localStorage.setItem("user_data", JSON.stringify(user))
 
-    return {
-      year: currentYear,
-      branch: branchMap[branchCode] || 'Unknown'
+      this.authState = {
+        user,
+        isAuthenticated: true,
+        token,
+      }
+
+      return true
+    } catch (err) {
+      console.error("Login failed", err)
+      return false
     }
   }
 
-  login(email: string, password: string): Promise<boolean> {
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        const role = this.detectRole(email)
-        
-        // Admin check
-        if (email.endsWith('@admin.sdmit.in') && password === 'admin123') {
-          this.authState = {
-            user: { email, name: 'Admin', role: 'admin' },
-            isAuthenticated: true
-          }
-          resolve(true)
-          return
-        }
-
-        // Simple validation for demo
-        if (password.length >= 6) {
-          // Try to get stored user data from localStorage
-          const storedUserData = localStorage.getItem(`user_${email}`)
-          let userName = email.split('@')[0] // fallback to email prefix
-          
-          if (storedUserData) {
-            try {
-              const parsedData = JSON.parse(storedUserData)
-              userName = parsedData.name || userName
-            } catch (error) {
-              console.error('Error parsing stored user data:', error)
-            }
-          }
-          
-          let userData: User = { email, name: userName, role }
-          
-          // If student, parse USN data (assuming USN is in localStorage from signup)
-          if (role === 'student') {
-            const usn = localStorage.getItem(`usn_${email}`)
-            if (usn) {
-              const { year, branch } = this.parseUSN(usn)
-              userData = { ...userData, usn, year, branch }
-            }
-          }
-
-          this.authState = {
-            user: userData,
-            isAuthenticated: true
-          }
-          resolve(true)
-        } else {
-          resolve(false)
-        }
-      }, 500)
-    })
-  }
-
-  register(name: string, email: string, password: string, usn: string,year: string): Promise<boolean> {
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        // Store USN for later use
-        localStorage.setItem(`usn_${email}`, usn)
-        localStorage.setItem(`user_${email}`, JSON.stringify({ name, email, usn }))
-        resolve(true)
-      }, 500)
-    })
-  }
-
+  /** 🚪 Logout */
   logout(): void {
+    localStorage.removeItem("auth_token")
+    localStorage.removeItem("user_data")
+
     this.authState = {
       user: null,
-      isAuthenticated: false
+      isAuthenticated: false,
+      token: null,
     }
   }
 
+  /** 🔄 Restore auth state from localStorage on app reload */
+  restoreAuth(): void {
+    const token = localStorage.getItem("auth_token")
+    const userData = localStorage.getItem("user_data")
+
+    if (token && userData) {
+      try {
+        const parsedUser = JSON.parse(userData)
+        this.authState = {
+          user: parsedUser,
+          isAuthenticated: true,
+          token,
+        }
+      } catch (err) {
+        console.error("Failed to parse stored user data", err)
+      }
+    }
+  }
+
+  /** ✅ Getters */
   getAuthState(): AuthState {
     return this.authState
   }
