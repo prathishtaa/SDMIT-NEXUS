@@ -12,7 +12,7 @@ from db import SessionLocal
 # Configuration
 # ------------------------------
 FROM_EMAIL = "sdmitnexus@gmail.com"
-APP_PASSWORD = "hoqz tajs vyvf xobr"
+APP_PASSWORD = ""
 OTP_LENGTH = 6
 OTP_EXPIRY_SECONDS = 300  # 5 minutes
 
@@ -157,3 +157,4 @@ def resend_otp(email: str) -> dict:
             return {"status": "error", "message": "Failed to save OTP. Try again."}
     else:
         return {"status": "error", "message": "Failed to send OTP email. Check configuration and try later."}
+
