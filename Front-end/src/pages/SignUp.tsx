@@ -11,43 +11,40 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Navbar } from "@/components/navbar"
 import { useNavigate } from "react-router-dom"
-import { authService } from "@/lib/auth"
 import { useToast } from "@/hooks/use-toast"
 import { Loader2, User, Mail, Lock, IdCard } from "lucide-react"
 import OTPVerification from "@/components/otp-verification"
 import api from "@/services/api"
 
-type SignupStep = 'email' | 'otp' | 'details'
+type SignupStep = "email" | "otp" | "details"
 
 const getBranchFromUSN = (usn: string): string => {
-  if (!usn || usn.length < 7) return "";
+  if (!usn || usn.length < 7) return ""
 
-  // Branch code is at index 6–7 for format 4SU22AD032
-  const branchCode = usn.substring(5,7).toUpperCase();
+  const branchCode = usn.substring(5, 7).toUpperCase()
 
   switch (branchCode) {
-    case "AD":return "Artificial Intelligence and Data Science";
-    case "CS":return "Computer Science";
-    case "IS":return "Information Science";
-    case "CV":return "Civil Engineering";
-    case "EE":return "Electrical and Electronics";
-    case "EC":return "Electronics and Communication";
-    default:
-      return "cannot detect the branch";
+    case "AD": return "Artificial Intelligence and Data Science"
+    case "CS": return "Computer Science"
+    case "IS": return "Information Science"
+    case "CV": return "Civil Engineering"
+    case "EE": return "Electrical and Electronics"
+    case "EC": return "Electronics and Communication"
+    default: return "Unknown Branch"
   }
-};
+}
 
 export default function SignUp() {
-  const [currentStep, setCurrentStep] = useState<SignupStep>('email')
+  const [currentStep, setCurrentStep] = useState<SignupStep>("email")
   const [formData, setFormData] = useState({
-  name: '',
-  email: '',
-  password: '',
-  confirmPassword: '',
-  usn: '',
-  year:''
-})
-  const [branch, setBranch] = useState("");
+    name: "",
+    email: "",
+    password: "",
+    confirmPassword: "",
+    usn: "",
+    year: ""
+  })
+  const [branch, setBranch] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const navigate = useNavigate()
   const { toast } = useToast()
@@ -134,47 +131,37 @@ const handleEmailSubmit = async (e: React.FormEvent) => {
 }
   const handleDetailsSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-  
-    
     if (!validateDetailsForm()) return
 
     setIsLoading(true)
-    
-    try {
-      const success = await authService.register(
-        formData.name,
-        formData.email,
-        formData.password,
-        formData.usn,
-        formData.year
-      )
-      
-      if (success) {
-        toast({
-          title: "Account Created",
-          description: "Proceeding to face registration...",
-        })
-        
-        // Navigate to face registration
-        navigate('/face-registration', {
-  state: { 
-    userData: {
-      name: formData.name,
-      email: formData.email,
-      password: formData.password,
-      usn: formData.usn,
-      branch: branch,
-      year: formData.year
-    }
-  }
-})
 
-      }
+    try {
+      
+      const detectedBranch = getBranchFromUSN(formData.usn)
+      setBranch(detectedBranch)
+
+      toast({
+        title: "Account Info Collected",
+        description: "Proceeding to face registration...",
+      })
+
+      navigate("/face-registration", {
+        state: {
+          userData: {
+            name: formData.name,
+            email: formData.email,
+            password: formData.password,
+            usn: formData.usn,
+            branch: detectedBranch,
+            year: formData.year
+          },
+        },
+      })
     } catch (error) {
       toast({
         title: "Registration Failed",
         description: "Something went wrong. Please try again.",
-        variant: "destructive"
+        variant: "destructive",
       })
     } finally {
       setIsLoading(false)
@@ -226,7 +213,7 @@ const handleEmailSubmit = async (e: React.FormEvent) => {
                     <Input
                       id="email"
                       type="email"
-                      placeholder="yourname@sdmit.in"
+                      placeholder="yourusn@sdmit.in"
                       value={formData.email}
                       onChange={(e) => handleInputChange('email', e.target.value)}
                       className="pl-10"
@@ -234,7 +221,7 @@ const handleEmailSubmit = async (e: React.FormEvent) => {
                     />
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Use your SDMIT email (@sdmit.in) or admin email (@admin.sdmit.in)
+                    Use your SDMIT email (@sdmit.in)
                   </p>
                 </div>
 
