@@ -6,7 +6,7 @@ import secrets, string
 WORDS = ["river", "cloud", "star", "moon", "tree", "ocean", "storm", "fire", "wind", "stone"]
 
 FROM_EMAIL = "sdmitnexus@gmail.com"
-APP_PASSWORD = "hoqz tajs vyvf xobr"
+APP_PASSWORD = ""
 
 def generate_hybrid_password(num_words=1, num_digits=4, num_special=1):
     words = [secrets.choice(WORDS).capitalize() for _ in range(num_words)]
@@ -60,3 +60,4 @@ SDMIT Nexus Team
     except Exception as e:
         print(f"❌ Failed to send password email: {e}")
         return False
+
