@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react"
+// src/pages/Login.tsx
+import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -12,19 +13,30 @@ import { Loader2, Mail, Lock } from "lucide-react"
 export default function Login() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
-  const [detectedRole, setDetectedRole] = useState<'student' | 'lecturer' | 'admin' | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const navigate = useNavigate()
   const { toast } = useToast()
 
+  // ✅ Auto-redirect if already logged in
   useEffect(() => {
-    if (email) {
-      const role = authService.detectRole(email)
-      setDetectedRole(role)
-    } else {
-      setDetectedRole(null)
+    authService.restoreAuth()
+    if (authService.isAuthenticated()) {
+      const user = authService.getCurrentUser()
+      switch (user?.role) {
+        case "student":
+          navigate("/student-dashboard")
+          break
+        case "lecturer":
+          navigate("/lecturer-groups")
+          break
+        case "admin":
+          navigate("/admin-panel")
+          break
+        default:
+          navigate("/")
+      }
     }
-  }, [email])
+  }, [navigate])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -32,64 +44,50 @@ export default function Login() {
 
     try {
       const success = await authService.login(email, password)
-      
+
       if (success) {
         const user = authService.getCurrentUser()
-        
+
         toast({
           title: "Login Successful",
           description: `Welcome back, ${user?.name}!`,
         })
 
-        // Route based on actual role detected
         switch (user?.role) {
-          case 'student':
-            navigate('/student-dashboard')
+          case "student":
+            navigate("/student-dashboard")
             break
-          case 'lecturer':
-            navigate('/lecturer-groups')
+          case "lecturer":
+            navigate("/lecturer-groups")
             break
-          case 'admin':
-            navigate('/admin-panel')
+          case "admin":
+            navigate("/admin-panel")
             break
           default:
-            navigate('/student-dashboard')
+            navigate("/")
         }
       } else {
         toast({
           title: "Login Failed",
           description: "Invalid credentials. Please try again.",
-          variant: "destructive"
+          variant: "destructive",
         })
       }
     } catch (error) {
       toast({
         title: "Error",
         description: "Something went wrong. Please try again.",
-        variant: "destructive"
+        variant: "destructive",
       })
     } finally {
       setIsLoading(false)
     }
   }
 
-  const getRoleDisplayInfo = () => {
-    switch (detectedRole) {
-      case 'student':
-        return { text: "Detected as Student", color: "text-primary" }
-      case 'lecturer':
-        return { text: "Detected as Lecturer", color: "text-green-600" }
-      case 'admin':
-        return { text: "Detected as Admin", color: "text-orange-600" }
-      default:
-        return null
-    }
-  }
-
   return (
     <div className="min-h-screen bg-gradient-subtle">
       <Navbar showBack backTo="/" />
-      
+
       <main className="container mx-auto px-4 py-16 flex items-center justify-center">
         <Card className="w-full max-w-md shadow-medium">
           <CardHeader className="text-center">
@@ -100,10 +98,10 @@ export default function Login() {
               Sign in to your SDMIT Nexus account
             </CardDescription>
           </CardHeader>
-          
+
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-6">
-              {/* Email Field */}
+              {/* Email */}
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
                 <div className="relative">
@@ -118,17 +116,9 @@ export default function Login() {
                     required
                   />
                 </div>
-                {getRoleDisplayInfo() && (
-                  <p className={`text-xs font-medium ${getRoleDisplayInfo()?.color}`}>
-                    {getRoleDisplayInfo()?.text}
-                  </p>
-                )}
-                <p className="text-xs text-muted-foreground">
-                  @sdmit.in for students, @gmail.com for lecturers, @admin.sdmit.in for admin
-                </p>
               </div>
 
-              {/* Password Field */}
+              {/* Password */}
               <div className="space-y-2">
                 <Label htmlFor="password">Password</Label>
                 <div className="relative">
@@ -144,28 +134,23 @@ export default function Login() {
                   />
                 </div>
               </div>
-              {/* Forgot Password Link */}
-              <div className="text-right">
+
+              {/* Forgot Password */}
+              <div className="flex justify-end">
                 <Button
+                  type="button"
                   variant="link"
-                  className="p-0 h-auto text-sm text-primary"
-                  onClick={() => navigate('/forgot-password')}
+                  className="p-0 h-auto text-xs text-primary"
+                  onClick={() => navigate("/forgot-password")}
                 >
-                Forgot Password?
-              </Button>
+                  Forgot Password?
+                </Button>
               </div>
 
-              {/* Demo Credentials Info */}
-              <div className="p-3 bg-primary-light rounded-lg">
-                <p className="text-xs text-primary font-medium">Demo Credentials:</p>
-                <p className="text-xs text-primary">Admin: admin@admin.sdmit.in / admin123</p>
-                <p className="text-xs text-primary">Use any email + 6+ char password for Student/Lecturer</p>
-              </div>
-
-              {/* Submit Button */}
-              <Button 
-                type="submit" 
-                className="w-full bg-gradient-primary hover:opacity-90" 
+              {/* Submit */}
+              <Button
+                type="submit"
+                className="w-full bg-gradient-primary hover:opacity-90"
                 disabled={isLoading}
               >
                 {isLoading ? (
@@ -174,18 +159,19 @@ export default function Login() {
                     Signing In...
                   </>
                 ) : (
-                  'Sign In'
+                  "Sign In"
                 )}
               </Button>
 
-              {/* Sign Up Link */}
+              {/* Sign Up */}
               <div className="text-center">
                 <p className="text-sm text-muted-foreground">
-                  Don't have an account?{' '}
+                  Don't have an account?{" "}
                   <Button
+                    type="button"
                     variant="link"
                     className="p-0 h-auto font-medium text-primary"
-                    onClick={() => navigate('/signup')}
+                    onClick={() => navigate("/signup")}
                   >
                     Sign up
                   </Button>
