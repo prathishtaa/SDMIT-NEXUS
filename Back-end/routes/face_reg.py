@@ -1,7 +1,7 @@
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Depends
 from sqlalchemy.orm import Session
 from db import get_db
-from models import Student, FaceEmbedding
+from models import Student, FaceEmbedding, Group
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives import serialization, hashes
 from cryptography.hazmat.primitives.asymmetric import padding
@@ -10,6 +10,7 @@ import numpy as np
 import cv2
 import insightface
 from passlib.context import CryptContext
+from sqlalchemy.exc import IntegrityError
 
 router = APIRouter()
 
@@ -108,6 +109,19 @@ async def face_verify_register(
 
         if sim12 >= SIMILARITY_THRESHOLD and sim13 >= SIMILARITY_THRESHOLD and sim23 >= SIMILARITY_THRESHOLD:
             # 3️⃣ Verification passed → store student
+            group_name = f"{branch}-{year}"
+
+            group = db.query(Group).filter_by(branch=branch, year=year).first()
+            if not group:
+                group = Group(
+                    branch=branch,
+                    year=year,
+                    group_name=group_name
+                )
+                db.add(group)
+                db.commit()
+                db.refresh(group)
+            
             hashed_pw = pwd_context.hash(password)
             student = Student(
                 name=name,
@@ -115,7 +129,8 @@ async def face_verify_register(
                 password_hash=hashed_pw,
                 usn=usn,
                 branch=branch,
-                year=year
+                year=year,
+                group_id=group.group_id
             )
             db.add(student)
             db.commit()
@@ -136,7 +151,9 @@ async def face_verify_register(
             return {
                 "message": "confirmation done",
                 "similarities": {"sim12": sim12, "sim13": sim13, "sim23": sim23},
-                "student_id": student.student_id
+                "student_id": student.student_id,
+                "group_id": group.group_id,
+                "group_name": group.group_name
             }
         else:
             # 5️⃣ Verification failed → send response
@@ -144,6 +161,10 @@ async def face_verify_register(
                 "message": "these images don't belong to the same person",
                 "similarities": {"sim12": sim12, "sim13": sim13, "sim23": sim23}
             }
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Student with this email or USN already exists")
 
     except Exception as e:
+        db.rollback
         raise HTTPException(status_code=500, detail=str(e))
