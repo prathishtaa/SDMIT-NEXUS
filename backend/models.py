@@ -31,9 +31,9 @@ class NotificationStatus(enum.Enum):
 # ---------- STUDENTS ----------
 class Student(Base):
     __tablename__ = "students"
-    student_id = Column(Integer, primary_key=True, index=True)
+    student_id = Column(Integer, unique=True, index=True)
     name = Column(String, nullable=False)
-    usn = Column(String, unique=True)
+    usn = Column(String, primary_key=True)
     email = Column(String, unique=True, index=True, nullable=False)
     password_hash = Column(String, nullable=False)
     branch = Column(String, nullable=False)
@@ -186,3 +186,7 @@ class OTPVerification(Base):
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     expires_at = Column(DateTime(timezone=True), nullable=False)
     is_used = Column(Boolean, default=False)
+
+
+from chat_model import ChatMessage
+Student.messages = relationship("ChatMessage", back_populates="sender")

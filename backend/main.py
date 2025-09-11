@@ -22,4 +22,12 @@ app.include_router(auth.router, prefix="/auth", tags=["Auth"])
 if __name__ == "__main__":
     uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
 
+from routes import chat
+app.include_router(chat.router)
 
+from fastapi import FastAPI
+from chat_routes import router as chat_router
+
+app = FastAPI()
+
+app.include_router(chat_router)
