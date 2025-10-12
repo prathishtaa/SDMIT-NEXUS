@@ -11,8 +11,8 @@ from db import SessionLocal
 # ------------------------------
 # Configuration
 # ------------------------------
-FROM_EMAIL = "sdmitnexus@gmail.com"
-APP_PASSWORD = "hoqz tajs vyvf xobr"
+FROM_EMAIL = ""
+APP_PASSWORD = ""
 OTP_LENGTH = 6
 OTP_EXPIRY_SECONDS = 300  # 5 minutes
 
@@ -46,10 +46,10 @@ def send_email(to_email: str, otp: str) -> bool:
 
         msg = EmailMessage()
 
-        # ✅ Single subject for both cases
+        # Single subject for both cases
         msg["Subject"] = "SDMIT Nexus OTP"
 
-        # ✅ Universal content for both verification & password reset
+        #  Universal content for both verification & password reset
         content = f"""
 Hello,
 
@@ -68,7 +68,7 @@ SDMIT Nexus Team
 
         server.send_message(msg)
         server.quit()
-        print(f"✅ Email sent successfully to {to_email}")
+        print(f"Email sent successfully to {to_email}")
         return True
 
     except Exception as e:
@@ -157,3 +157,4 @@ def resend_otp(email: str) -> dict:
             return {"status": "error", "message": "Failed to save OTP. Try again."}
     else:
         return {"status": "error", "message": "Failed to send OTP email. Check configuration and try later."}
+
