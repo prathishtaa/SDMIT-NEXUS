@@ -6,7 +6,7 @@ from utils.auth_utils import get_current_user
 from fastapi.responses import FileResponse
 import os
 import asyncio
-from routes.sse import broadcast_document
+from routes.sse import broadcast_document,broadcast_document_delete
 from datetime import datetime
 
 router = APIRouter()
@@ -62,14 +62,13 @@ async def upload_document(
     db.add(document)
     db.commit()
     db.refresh(document)
-    print(document)
     document_data={
         "id": document.document_id,
         "title": title,
         "group_id": group_id,
         "uploadedBy": lecturer_id,
         "author_name": author_name,
-        "deadline": deadline,
+        "deadline": deadline_dt,
         "uploaded_at": document.uploaded_at,
         "fileUrl":file_url,
         "fileName":file_name
@@ -132,8 +131,11 @@ def list_documents(group_id: int, db: Session = Depends(get_db), current_user: d
 # Delete a Document
 # -------------------
 @router.delete("/delete/{document_id}")
-def delete_document(document_id: str, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
-    # Only lecturers can delete
+async def delete_document(
+    document_id: str,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
     if current_user["role"] != "lecturer":
         raise HTTPException(status_code=403, detail="Only lecturers can delete documents")
 
@@ -142,13 +144,20 @@ def delete_document(document_id: str, db: Session = Depends(get_db), current_use
     if not document:
         raise HTTPException(status_code=404, detail="Document not found or not authorized")
 
-    # Delete file from local storage
+    group_id = document.group_id
+
+    # Delete file if it exists
     if document.file_name:
-            file_path = os.path.join(UPLOAD_DIR, document.file_name)
-            if os.path.exists(file_path):
-                os.remove(file_path)
-    # Delete DB record
-            db.delete(document)
-            db.commit()
+        file_path = os.path.join(UPLOAD_DIR, document.file_name)
+        if os.path.exists(file_path):
+            os.remove(file_path)
+
+    # Delete from DB
+    db.delete(document)
+    db.commit()
+
+    # 🧠 Broadcast delete event
+    await broadcast_document_delete(group_id, document_id)
 
     return {"detail": f"Document {document_id} deleted successfully"}
+
