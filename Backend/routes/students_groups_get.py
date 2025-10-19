@@ -1,26 +1,77 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException,Query
 from sqlalchemy.orm import Session
 from db import get_db
-from models import DoubtClarification, StudyMaterial, Event, Document, Lecturer, Student,DocumentSignature
+from models import DoubtClarification, StudyMaterial, Event, Document, Lecturer, Student,LecturerGroup,RecipientRole
 from utils.auth_utils import get_current_user
 
 router = APIRouter()
 
 # -----------------------------
-# Get Group Messages (Doubt Clarifications)
+# Get Group Messages. works for both student and lecturer
 # -----------------------------
-@router.get("/{group_id}/messages")
-def get_group_messages(group_id: int, db: Session = Depends(get_db)):
-    messages = db.query(DoubtClarification)\
-                 .filter(DoubtClarification.group_id == group_id, DoubtClarification.is_reply == False)\
-                 .all()
+@router.get("/messages")
+def get_group_messages(
+    group_id: int = Query(...),
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    # Determine if user is a student or lecturer
+    student = db.query(Student).filter(Student.student_id == current_user["id"]).first()
+    if student:
+        # Student can only fetch their own group
+        if student.group_id != group_id:
+            raise HTTPException(status_code=403, detail="Access denied to this group")
+    else:
+        # Assume lecturer
+        lecturer = db.query(Lecturer).filter(Lecturer.lecturer_id == current_user["id"]).first()
+        if not lecturer:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        # Check if lecturer belongs to the requested group
+        lecturer_group = db.query(LecturerGroup).filter(
+            LecturerGroup.lecturer_id == lecturer.lecturer_id,
+            LecturerGroup.group_id == group_id
+        ).first()
+        if not lecturer_group:
+            raise HTTPException(status_code=403, detail="Access denied to this group")
+
+    doubts = db.query(DoubtClarification).filter(
+    DoubtClarification.group_id == group_id
+).order_by(DoubtClarification.created_at).all()
+
+    messages = []
+
+    for d in doubts:
+        
+        sender_name = "Unknown"
+
+        if d.sender_role == RecipientRole.student:
+            sender = db.query(Student).filter(Student.student_id == d.sender_id).first()
+            
+            if sender:
+                sender_name = sender.name
+        elif d.sender_role == RecipientRole.lecturer:
+            sender = db.query(Lecturer).filter(Lecturer.lecturer_id == d.sender_id).first()
+            
+            if sender:
+                sender_name = sender.name
+
+        messages.append({
+            "doubt_id": d.doubt_id,
+            "sender_name": sender_name,
+            "message": d.message,
+            "sender_id": d.sender_id,
+            "sender_role": d.sender_role.value if hasattr(d.sender_role, 'value') else d.sender_role,
+            "created_at": d.created_at,
+            "reply_to": d.parent_doubt_id
+        })
+
     return messages
+
 
 # -----------------------------
 # Get Announcements (Study Materials + Events)
 # -----------------------------
-from models import Lecturer
-
 @router.get("/{group_id}/announcements")
 def get_group_announcements(group_id: int, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     # Materials with lecturer info
@@ -63,7 +114,7 @@ def get_group_announcements(group_id: int, db: Session = Depends(get_db), curren
     materials_list = [dict(m._mapping) for m in materials]
     events_list = [dict(e._mapping) for e in events]
 
-# Sort newest first
+# Sorts newest first
     materials_list.sort(key=lambda x: x.get("uploaded_at") or "", reverse=True)
     events_list.sort(key=lambda x: x.get("created_at") or "", reverse=True)
     return {
