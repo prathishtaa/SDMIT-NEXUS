@@ -7,7 +7,7 @@ from utils.auth_utils import get_current_user
 from datetime import datetime
 import os
 import asyncio
-from routes.sse import broadcast_announcement
+from routes.sse import broadcast_announcement,broadcast_announcement_delete
 
 router = APIRouter()
 
@@ -96,7 +96,7 @@ async def create_announcement(
     return announcement_data
 
 @router.delete("/delete-announcements/{ann_id}")
-def delete_announcement(
+async def delete_announcement(
     ann_id: str,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
@@ -114,18 +114,25 @@ def delete_announcement(
 
     lecturer_id = current_user["id"]
 
-    # Delete material
+    # Delete study material
     if ann_type == "material":
         ann = db.query(StudyMaterial).filter_by(material_id=ann_id_num, uploaded_by=lecturer_id).first()
         if not ann:
             raise HTTPException(status_code=404, detail="Material not found or not authorized")
-        # Delete file if exists
+
+        group_id = ann.group_id
+
+        # Delete file if it exists
         if ann.file_name:
             file_path = os.path.join(UPLOAD_DIR, ann.file_name)
             if os.path.exists(file_path):
                 os.remove(file_path)
+
         db.delete(ann)
         db.commit()
+
+        # Broadcast to all subscribers in that group
+        await broadcast_announcement_delete(group_id, ann_id)
         return {"detail": f"Material {ann_id} deleted successfully"}
 
     # Delete event
@@ -133,15 +140,21 @@ def delete_announcement(
         ann = db.query(Event).filter_by(event_id=ann_id_num, created_by=lecturer_id).first()
         if not ann:
             raise HTTPException(status_code=404, detail="Event not found or not authorized")
-        # Delete file if exists
+
+        group_id = ann.group_id
+
         if ann.file_name:
             file_path = os.path.join(UPLOAD_DIR, ann.file_name)
             if os.path.exists(file_path):
                 os.remove(file_path)
+
         db.delete(ann)
         db.commit()
+
+        await broadcast_announcement_delete(group_id, ann_id)
         return {"detail": f"Event {ann_id} deleted successfully"}
 
     else:
         raise HTTPException(status_code=400, detail="Invalid announcement type")
+
 
