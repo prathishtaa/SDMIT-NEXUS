@@ -5,6 +5,10 @@ from routes import admin, auth, face_reg, login,students_groups_get, lecturer, l
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 from fastapi.staticfiles import StaticFiles
+from utils.email_notifications import email_service
+import logging
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI()
 
@@ -29,6 +33,17 @@ app.include_router(post_files.router, prefix="/files", tags=["files"])
 app.include_router(post_del_documents.router, prefix="/documents", tags=["documents"])
 app.include_router(sign.router, prefix="/sign-document", tags=["sign"])
 app.include_router(sse.router,prefix="/sse",tags=["sse"])
+
+@app.on_event("startup")
+async def startup_event():
+    """Initialize email service scheduler on startup"""
+    logger.info("Email notification service initialized")
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Shutdown email service scheduler on shutdown"""
+    email_service.scheduler.shutdown()
+    logger.info("Email notification service shutdown")
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)

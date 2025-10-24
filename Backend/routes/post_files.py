@@ -4,6 +4,7 @@ from db import get_db
 from fastapi.responses import FileResponse
 from models import StudyMaterial, Event, LecturerGroup, Lecturer
 from utils.auth_utils import get_current_user
+from utils.email_notifications import email_service
 from datetime import datetime
 import os
 import asyncio
@@ -91,6 +92,13 @@ async def create_announcement(
         "fileUrl": file_url,
         "fileName": file_name,
     }
+    
+    # Send email notifications asynchronously
+    if type == "material":
+        asyncio.create_task(email_service.send_material_notification(db, group_id, author_name, title))
+    elif type == "event":
+        asyncio.create_task(email_service.send_event_notification(db, group_id, author_name, title))
+    
     # Broadcast asynchronously (fire-and-forget)
     asyncio.create_task(broadcast_announcement(group_id, announcement_data))
     return announcement_data

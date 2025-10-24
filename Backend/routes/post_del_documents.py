@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from db import get_db
 from models import Document, Group, LecturerGroup, Lecturer
 from utils.auth_utils import get_current_user
+from utils.email_notifications import email_service
 from fastapi.responses import FileResponse
 import os
 import asyncio
@@ -73,6 +74,13 @@ async def upload_document(
         "fileUrl":file_url,
         "fileName":file_name
     }
+    
+    # Send email notifications asynchronously
+    asyncio.create_task(email_service.send_document_notification(db, group_id, author_name, title))
+    
+    # Schedule deadline reminder (30 minutes before deadline)
+    email_service.schedule_deadline_reminder(document.document_id, deadline_dt)
+    
     # Broadcast asynchronously (fire-and-forget)
     asyncio.create_task(broadcast_document(group_id, document_data))
     return document_data
@@ -152,6 +160,9 @@ async def delete_document(
         if os.path.exists(file_path):
             os.remove(file_path)
 
+    # Cancel scheduled deadline reminder
+    email_service.cancel_deadline_reminder(document_id)
+    
     # Delete from DB
     db.delete(document)
     db.commit()

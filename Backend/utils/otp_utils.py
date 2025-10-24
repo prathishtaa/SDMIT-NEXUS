@@ -11,8 +11,8 @@ from db import SessionLocal
 # ------------------------------
 # Configuration
 # ------------------------------
-FROM_EMAIL = ""
-APP_PASSWORD = ""
+FROM_EMAIL = "sdmitnexus@gmail.com"
+APP_PASSWORD = "hoqz tajs vyvf xobr"
 OTP_LENGTH = 6
 OTP_EXPIRY_SECONDS = 300  # 5 minutes
 
