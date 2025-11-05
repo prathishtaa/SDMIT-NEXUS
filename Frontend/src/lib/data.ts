@@ -7,8 +7,10 @@ export interface Message {
   author: string;
   content: string;
   timestamp: Date;
-  role: "student" | "lecturer";
+  role: "student" | "lecturer" | "system";
+  reply_to?: string | null; // optional property
 }
+
 
 export interface Announcement {
   id: string;
@@ -16,6 +18,7 @@ export interface Announcement {
   title: string;
   content: string;
   type: "material" | "event";
+  uploader_id: number;
   author: string;
   timestamp: Date; 
   targetYear?: string;
@@ -65,20 +68,11 @@ class DataManager {
 
   // ----- Messages -----
   async getMessages(groupId?: number): Promise<Message[]> {
-    const res = await api.get(`/messages${groupId ? `?group_id=${groupId}` : ""}`);
+    const res = await api.get(`/groups/messages${groupId ? `?group_id=${groupId}` : ""}`);
     return (res.data || []).map((msg: any) => ({
       ...msg,
       timestamp: new Date(msg.timestamp),
     }));
-  }
-
-  async addMessage(message: Omit<Message, "id" | "timestamp">): Promise<Message> {
-    const res = await api.post("/messages", message);
-    return { ...res.data, timestamp: new Date(res.data.timestamp) };
-  }
-
-  async deleteMessage(id: string): Promise<void> {
-    await api.delete(`/messages/${id}`);
   }
 
   // ----- Announcements -----

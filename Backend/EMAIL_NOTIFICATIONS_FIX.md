@@ -129,3 +129,5 @@ The system logs all email activities. Check the console output for:
 ---
 
 **Once you update the Gmail credentials, all email notifications will work automatically!** 🎉
+
+

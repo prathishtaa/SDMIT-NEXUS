@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from db import Base, engine
 import models
-from routes import admin, auth, face_reg, login,students_groups_get, lecturer, lect_groups_get,post_files,post_del_documents,sign,sse
+from routes import admin, auth, chats, face_reg, login,students_groups_get, lecturer, lect_groups_get,post_files,post_del_documents,sign,sse
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 from fastapi.staticfiles import StaticFiles
@@ -23,6 +23,7 @@ app.add_middleware(
 models.Base.metadata.create_all(bind=engine)
 app.mount("/static", StaticFiles(directory="uploads"), name="static")
 app.include_router(auth.router, prefix="/auth", tags=["Auth"])
+app.include_router(chats.router, prefix="/chats", tags=["Chats"])
 app.include_router(face_reg.router, prefix="/face_reg", tags=["Face"]) 
 app.include_router(login.router, prefix="/login", tags=["login"])
 app.include_router(students_groups_get.router,prefix="/groups", tags=["Groups"])

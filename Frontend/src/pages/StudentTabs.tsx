@@ -1,11 +1,11 @@
-import React , { useEffect, useState,useRef} from "react"
+import { useEffect, useState,useRef} from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { MessageCircle, Send, FileCheck, BookOpen, Calendar } from "lucide-react"
+import { FileCheck, BookOpen, Calendar } from "lucide-react"
 import api from "@/services/api"
 import { format, isValid, parseISO } from "date-fns"
 import { useToast } from "@/hooks/use-toast"
@@ -62,7 +62,11 @@ export default function StudentTabs({ activeTab, setActiveTab, user }) {
   const wsRef = useRef<WebSocket | null>(null)
   const [prompt, setPrompt] = useState("")
   const [status, setStatus] = useState("")
-
+  
+  const messagesEndRef = useRef(null);
+  const scrollViewportRef = useRef(null);
+  const [isAtBottom, setIsAtBottom] = useState(true);
+  const [showNewMessageButton, setShowNewMessageButton] = useState(false);
 
   // Loading states per tab
   const [loadingMessages, setLoadingMessages] = useState(false)
@@ -81,6 +85,7 @@ useEffect(() => {
   const token = localStorage.getItem("auth_token");
   const ws = new WebSocket(`ws://localhost:8000/chats/ws/group/${user.group_id}?token=${token}`);
   wsRef.current = ws;
+
 
   setLoadingMessages(true);
 
@@ -161,6 +166,15 @@ useEffect(() => {
   };
 }, [user.group_id, user.id, user.name, toast]);
 
+useEffect(() => {
+  if (isAtBottom) {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  } else {
+    setShowNewMessageButton(true);
+  }
+}, [messages]);
+
+
 // Announcements fetch
 useEffect(() => {
   if (activeTab !== "announcements" || !user?.group_id) return;
@@ -192,6 +206,11 @@ setAnnouncements(prev => {
   }
   return updated;
 });
+toast({
+      title: "Announcement Deleted",
+      description: `An announcement has been removed.`,
+      variant: "destructive",
+    });
 return
     }
 
@@ -207,7 +226,7 @@ return
   type: data.type ?? "material",
 };
 
-
+  let isNew = false;
     setAnnouncements((prev) => {
     const updated = { ...prev };
 
@@ -231,6 +250,12 @@ return
 
     return updated;
   });
+  if (isNew) {
+    toast({
+      title: "New Announcement",
+      description: `${normalized.title} — posted by ${normalized.lecturer_name}`,
+    });
+  }
 };
 
   evtSource.onerror = (err) => {
@@ -282,7 +307,13 @@ useEffect(() => {
       setDocuments((prev) =>
         prev.filter((d) => d.document_id !== Number(data.document_id))
       );
+      toast({
+      title: "Document Deleted",
+      description: `Document has been removed.`,
+      variant: "destructive",
+    });
       return;
+
     }
 
     // ----------------- Normalize Document -----------------
@@ -299,6 +330,7 @@ useEffect(() => {
             signed_at: sig.signed_at,
           })),
     };
+    
 
     // ----------------- Merge / Add Document -----------------
     setDocuments((prev) => {
@@ -500,7 +532,7 @@ const handleDeleteMessage = (id: number) => {
   // update document state immediately
   setDocuments((prev) =>
     prev.map((doc) =>
-      doc.document_id === Number(modalDocId)// use same type as backend returns
+      doc.document_id === Number(modalDocId)
         ? {
             ...doc,
             signatures: [
@@ -662,11 +694,30 @@ const handleDeleteMessage = (id: number) => {
     }
     return format(d, "MMM dd, yyyy HH:mm")
   }
+const handleScroll = (e) => {
+  const { scrollTop, scrollHeight, clientHeight } = e.target;
+  const atBottom = scrollHeight - scrollTop - clientHeight < 50;
+
+  setIsAtBottom(atBottom);
+
+  // Hide "new message" button when at bottom
+  if (atBottom) setShowNewMessageButton(false);
+};
 
   // ---------------- Render ----------------
   return (
     <div className="container mx-auto px-4 py-6">
-      <Button variant="outline" className="mb-6" onClick={() => setActiveTab(null)}>
+      <Button
+        variant="outline"
+        className="mb-6"
+        onClick={() => {
+          try {
+            const lastVisitedKey = `gd:lastVisited:${user.id}:${user.group_id}`;
+            localStorage.setItem(lastVisitedKey, new Date().toISOString());
+          } catch (e) {}
+          setActiveTab(null)
+        }}
+      >
         ← Back to Dashboard
       </Button>
 
@@ -678,7 +729,7 @@ const handleDeleteMessage = (id: number) => {
     </CardHeader>
 
     <CardContent>
-      <ScrollArea className="h-96 mb-4 pr-2">
+      <ScrollArea ref={scrollViewportRef} className="h-96 mb-4 pr-2" onScrollCapture={handleScroll}>
         <div className="flex flex-col space-y-3">
           {loadingMessages
             ? Array.from({ length: 5 }).map((_, i) => <MessageSkeleton key={i} />)
@@ -795,8 +846,23 @@ const handleDeleteMessage = (id: number) => {
                   </div>
                 );
               })}
+        <div ref={messagesEndRef} />
         </div>
       </ScrollArea>
+
+      {showNewMessageButton && (
+  <div className="flex justify-center mb-2">
+    <button
+      onClick={() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+        setShowNewMessageButton(false);
+      }}
+      className="bg-blue-600 text-white px-3 py-1 rounded-full text-sm shadow-md hover:bg-blue-700"
+    >
+      ⬇️ New Messages
+    </button>
+  </div>
+)}
 
       {/* Reply Section */}
       {replyParentId &&

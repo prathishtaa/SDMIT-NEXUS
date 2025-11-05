@@ -57,6 +57,7 @@ import {
   type Document,
   type Signature,
 } from "@/lib/data";
+import api from "@/services/api";
 
 export default function LecturerDashboard() {
   const { groupId } = useParams<{ groupId: string }>();
@@ -73,6 +74,11 @@ export default function LecturerDashboard() {
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
   const [openDropdowns, setOpenDropdowns] = useState<{ [id: string]: boolean }>({});
   const wsRef = useRef<WebSocket | null>(null);
+
+  const messagesEndRef = useRef(null);
+  const scrollViewportRef = useRef(null);
+  const [isAtBottom, setIsAtBottom] = useState(true);
+  const [showNewMessageButton, setShowNewMessageButton] = useState(false);
 
   const [newMessage, setNewMessage] = useState("");
   const [newAnnTitle, setNewAnnTitle] = useState("");
@@ -152,12 +158,13 @@ export default function LecturerDashboard() {
 
   // ---------------------- MESSAGES WEBSOCKET ----------------------
   useEffect(() => {
-    if (!groupId) return;
+    if (!groupId || !user?.id) return;
 
     const token = localStorage.getItem("auth_token");
     const ws = new WebSocket(`ws://localhost:8000/chats/ws/group/${groupId}?token=${token}`);
     wsRef.current = ws;
     setLoadingMessages(true);
+
 
     dataManager.getMessages(Number(groupId))
       .then((msgs: any[]) => {
@@ -168,6 +175,7 @@ export default function LecturerDashboard() {
           role: msg.sender_role,
           timestamp: msg.created_at,
           reply_to: msg.reply_to ?? null,
+          sender_id: msg.sender_id, // Include sender_id for unread check
         }));
         setMessages(fetched);
       })
@@ -219,7 +227,15 @@ export default function LecturerDashboard() {
       ws.close();
       wsRef.current = null;
     };
-  }, [groupId, toast]);
+  }, [groupId, user?.id, toast]);
+
+  useEffect(() => {
+  if (isAtBottom) {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  } else {
+    setShowNewMessageButton(true);
+  }
+  }, [messages]);
 
   // ---------------------- ANNOUNCEMENTS SSE ----------------------
   useEffect(() => {
@@ -372,6 +388,15 @@ export default function LecturerDashboard() {
   }
 };
 
+const handleScroll = (e) => {
+  const { scrollTop, scrollHeight, clientHeight } = e.target;
+  const atBottom = scrollHeight - scrollTop - clientHeight < 50;
+
+  setIsAtBottom(atBottom);
+
+  // Hide "new message" button when at bottom
+  if (atBottom) setShowNewMessageButton(false);
+};
 
   const safeFormat = (date: string | Date | undefined | null, fmt: string) => {
     if (!date) return "N/A";
@@ -415,7 +440,7 @@ export default function LecturerDashboard() {
     </CardHeader>
 
     <CardContent>
-      <ScrollArea className="h-96 mb-4 pr-2">
+      <ScrollArea ref={scrollViewportRef} className="h-96 mb-4 pr-2" onScrollCapture={handleScroll}>
         <div className="flex flex-col space-y-3">
           {loadingMessages
             ? Array.from({ length: 5 }).map((_, i) => <div className="flex flex-col space-y-2">
@@ -537,8 +562,22 @@ export default function LecturerDashboard() {
                 );
               })
             )}
+          <div ref={messagesEndRef} />
         </div>
       </ScrollArea>
+      {showNewMessageButton && (
+  <div className="flex justify-center mb-2">
+    <button
+      onClick={() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+        setShowNewMessageButton(false);
+      }}
+      className="bg-blue-600 text-white px-3 py-1 rounded-full text-sm shadow-md hover:bg-blue-700"
+    >
+      ⬇️ New Messages
+    </button>
+  </div>
+)}
 
       {/* Reply section */}
       {replyParentId &&
@@ -660,7 +699,12 @@ export default function LecturerDashboard() {
                           <span>{ann.title}</span>
                           <Badge variant={ann.type === "material" ? "default" : "secondary"}>{ann.type === "material" ? "Material" : "Event"}</Badge>
                         </div>
-                        <ConfirmButton label="Remove" onConfirm={() => handleDeleteAnnouncement(ann.id)} />
+                        {user?.id === ann.uploader_id && (
+  <ConfirmButton
+    label="Remove"
+    onConfirm={() => handleDeleteAnnouncement(ann.id)}
+  />
+)}
                       </CardTitle>
                       <CardDescription>{ann.author} • {safeFormat(ann.timestamp, "MMM dd, yyyy HH:mm")}</CardDescription>
                     </CardHeader>
@@ -742,10 +786,10 @@ export default function LecturerDashboard() {
                 <span>{doc.title}</span>
                 <div className="flex items-center gap-2">
                   {statusBadge}
-                  <ConfirmButton
+                  {user?.id===doc.uploadedBy &&(<ConfirmButton
   label="Remove"
   onConfirm={() => handleDeleteDocument(doc.id)}
-/>
+/>)}
                 </div>
               </CardTitle>
               <CardDescription>

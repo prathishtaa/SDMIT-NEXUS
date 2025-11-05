@@ -4,6 +4,7 @@ from db import get_db
 from models import DoubtClarification, Student, Lecturer
 from utils.auth_utils import get_current_user_from_token
 from utils.websocket_manager import ConnectionManager
+from utils.email_notifications import email_service
 
 router = APIRouter()
 manager = ConnectionManager()
@@ -75,6 +76,21 @@ async def websocket_endpoint(
                 db.add(new_message)
                 db.commit()
                 db.refresh(new_message)
+
+                # Send email notification if this is a reply
+                if parent_id is not None:
+                    try:
+                        email_service.send_reply_notification(
+                            db=db,
+                            parent_message_id=parent_id,
+                            replier_name=current_user["name"],
+                            replier_role=current_user["role"],
+                            replier_id=current_user["id"]
+                        )
+                    except Exception as e:
+                        # Log error but don't fail the message send
+                        import logging
+                        logging.getLogger(__name__).error(f"Failed to send reply notification: {e}")
 
                 await manager.broadcast(group_id, {
                     "type": "message",

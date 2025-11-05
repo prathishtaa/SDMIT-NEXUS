@@ -64,6 +64,17 @@ Please log in to SDMIT Nexus to sign the document immediately.
 Best regards,
 SDMIT Nexus Team
         """
+    },
+    "reply_notification": {
+        "subject": "New reply to your message in Group Discussion",
+        "template": """
+Dear User,
+
+{replier_name} has replied to your message. Please check it in the Group Discussion section.
+
+Best regards,
+SDMIT Nexus Team
+        """
     }
 }
 
@@ -73,4 +84,4 @@ SMTP_PORT = 587
 SMTP_TIMEOUT = 15
 
 # Notification Settings
-DEADLINE_REMINDER_MINUTES = 30  # Minutes before deadline to send reminder
+DEADLINE_REMINDER_MINUTES = 10  # Minutes before deadline to send reminder

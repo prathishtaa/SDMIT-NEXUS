@@ -37,7 +37,7 @@ except ImportError:
     SMTP_SERVER = "smtp.gmail.com"
     SMTP_PORT = 587
     SMTP_TIMEOUT = 15
-    DEADLINE_REMINDER_MINUTES = 30
+    DEADLINE_REMINDER_MINUTES = 10
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -194,7 +194,7 @@ SDMIT Nexus Team
             logger.error(f"Error sending document notifications: {e}")
 
     async def send_deadline_reminder(self, document_id: int):
-        """Send email reminders to students who haven't signed a document 30 minutes before deadline"""
+        """Send email reminders to students who haven't signed a document 10 minutes before deadline"""
         try:
             # Create a new database session for this async operation
             from db import SessionLocal
@@ -293,6 +293,62 @@ SDMIT Nexus Team
             logger.info(f"Deadline reminder cancelled for document {document_id}")
         except Exception as e:
             logger.error(f"Error cancelling deadline reminder: {e}")
+
+    def send_reply_notification(self, db: Session, parent_message_id: int, replier_name: str, replier_role: str, replier_id: int):
+        """Send email notification to the original message sender when someone replies"""
+        try:
+            # Get the parent message
+            from models import DoubtClarification
+            parent_message = db.query(DoubtClarification).filter(
+                DoubtClarification.doubt_id == parent_message_id
+            ).first()
+            
+            if not parent_message:
+                logger.warning(f"Parent message {parent_message_id} not found")
+                return
+            
+            # Don't send email if the replier is the same as the original sender
+            if (parent_message.sender_id == replier_id and 
+                parent_message.sender_role.value == replier_role):
+                # This is a self-reply, don't send notification
+                logger.info(f"Skipping reply notification - user replied to their own message")
+                return
+            
+            # Get the original sender's email
+            recipient_email = None
+            if parent_message.sender_role.value == "student":
+                sender = db.query(Student).filter(Student.student_id == parent_message.sender_id).first()
+                if sender:
+                    recipient_email = sender.email
+            elif parent_message.sender_role.value == "lecturer":
+                sender = db.query(Lecturer).filter(Lecturer.lecturer_id == parent_message.sender_id).first()
+                if sender:
+                    recipient_email = sender.email
+            
+            if not recipient_email:
+                logger.warning(f"Could not find email for sender {parent_message.sender_id}")
+                return
+            
+            # Use email template if available
+            template = EMAIL_TEMPLATES.get("reply_notification", {})
+            subject = template.get("subject", "New reply to your message in Group Discussion")
+            content_template = template.get("template", """
+Dear User,
+
+{replier_name} has replied to your message. Please check it in the Group Discussion section.
+
+Best regards,
+SDMIT Nexus Team
+            """)
+            content = content_template.format(replier_name=replier_name)
+            
+            # Send email
+            success = self.send_email(recipient_email, subject, content)
+            if success:
+                logger.info(f"Reply notification sent to {recipient_email}")
+            
+        except Exception as e:
+            logger.error(f"Error sending reply notification: {e}")
 
 # Global instance
 email_service = EmailNotificationService()

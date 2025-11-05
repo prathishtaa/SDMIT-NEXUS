@@ -4,7 +4,7 @@ from passlib.context import CryptContext
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 
-SECRET_KEY = "c2e1427401a336e9b8806a87b77644f20273a159828e51872c62ab10d7c21893"
+SECRET_KEY = ""
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_DAYS = 30
 
@@ -44,5 +44,18 @@ def get_current_user(token: str = Depends(oauth2_scheme)):
             detail="Invalid or expired token",
             headers={"WWW-Authenticate": "Bearer"},
         )
+def get_current_user_from_token(token: str):
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id: int = payload.get("id")
+        email: str = payload.get("sub")
+        role: str = payload.get("role")
 
+        if user_id is None or email is None or role is None:
+            raise ValueError("Invalid authentication payload")
+
+        return {"id": user_id, "email": email, "role": role}
+
+    except JWTError as e:
+        raise ValueError(f"Invalid or expired token: {str(e)}")
 
