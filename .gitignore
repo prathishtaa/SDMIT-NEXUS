@@ -1,0 +1,95 @@
+# ========================
+# General
+# ========================
+.DS_Store
+Thumbs.db
+*.log
+logs/
+*.local
+.env
+.env.*
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# ========================
+# Python (Backend)
+# ========================
+__pycache__/
+*.py[cod]
+*.so
+*.egg-info/
+*.pyo
+*.pyd
+*.spec
+
+# Virtual environments
+venv/
+.env/
+.venv/
+Backend/venv/
+Backend/__pycache__/
+Backend/.pytest_cache/
+
+# Byte-compiled and build
+build/
+dist/
+pip-wheel-metadata/
+
+# ========================
+# FastAPI / Machine Learning files
+# ========================
+*.db
+*.sqlite3
+*.sqlite
+*.h5
+*.pt
+*.pth
+*.onnx
+*.weights
+*.model
+*.pickle
+*.pkl
+
+# ========================
+# Node / React (Frontend)
+# ========================
+node_modules/
+dist/
+dist-ssr/
+build/
+.cache/
+*.tsbuildinfo
+
+# ========================
+# IDE / OS-specific
+# ========================
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.iml
+
+# ========================
+# Testing / Coverage
+# ========================
+coverage/
+.pytest_cache/
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.tox/
+.cache/
+htmlcov/
+
+# ========================
+# Miscellaneous
+# ========================
+*.bak
+*.tmp
+*.swp
+*.orig
